@@ -8,21 +8,21 @@ An architectural prototype exploring server-driven UI and per-customer section r
 
 After reading Picnic's full Page Platform blog series, two problems stood out as worth exploring independently.
 
-The rule engine described in the blogs controls section **visibility** — whether a section appears or not, based on time-of-day, day-of-week, or static rules. But it does not control section **order**. Every customer who passes the same visibility rules sees the same layout, in the same sequence, regardless of their purchase behaviour.
+The rule engine described in the blogs controls section **visibility**  whether a section appears or not, based on time-of-day, day-of-week, or static rules. But it does not control section **order**. Every customer who passes the same visibility rules sees the same layout, in the same sequence, regardless of their purchase behaviour.
 
-This means a customer who buys dairy every week sees the dairy section in the same position as a customer who has never bought dairy. The layout is correct, but it is not personalised. This project explores what happens when you add a per-customer ranking layer on top of the existing rule engine — without replacing it.
+This means a customer who buys dairy every week sees the dairy section in the same position as a customer who has never bought dairy. The layout is correct, but it is not personalised. This project explores what happens when you add a per-customer ranking layer on top of the existing rule engine without replacing it.
 
 ---
 
 ## What This Builds
 
-### Pillar 1 — Server-Driven Layout
+### Pillar 1 - Server-Driven Layout
 
-`PageService` assembles the full page layout on the backend. `RuleEngineService` evaluates visibility rules per section. The frontend receives a complete, ordered list of sections and renders them without any layout logic of its own. Adding a new section or changing display order requires zero frontend changes — the backend is the single source of truth.
+`PageService` assembles the full page layout on the backend. `RuleEngineService` evaluates visibility rules per section. The frontend receives a complete, ordered list of sections and renders them without any layout logic of its own. Adding a new section or changing display order requires zero frontend changes the backend is the single source of truth.
 
-### Pillar 2 — Smart Section Ranker
+### Pillar 2 - Smart Section Ranker
 
-`RankerService` scores each section per customer using a weighted formula based on purchase frequency, recency, and time-of-day relevance. Sections are sorted by score descending before the response is sent. The customer never sees a score or knows that ranking occurred — the store simply feels more relevant.
+`RankerService` scores each section per customer using a weighted formula based on purchase frequency, recency, and time-of-day relevance. Sections are sorted by score descending before the response is sent. The customer never sees a score or knows that ranking occurred the store simply feels more relevant.
 
 ---
 
@@ -52,9 +52,9 @@ Each numerical score maps to a business signal for non-technical stakeholders:
 
 ## UI Component Registry
 
-The frontend uses a component registry pattern to render sections. A `renderers` object maps each `section.type` (e.g. `BANNER`, `PRODUCT_GRID`, `RECIPE`, `PROMO`) to a dedicated render function. When the backend introduces a new section type, the frontend only needs a single new entry in the registry — no structural changes, no conditionals, no refactoring.
+The frontend uses a component registry pattern to render sections. A `renderers` object maps each `section.type` (e.g. `BANNER`, `PRODUCT_GRID`, `RECIPE`, `PROMO`) to a dedicated render function. When the backend introduces a new section type, the frontend only needs a single new entry in the registry no structural changes, no conditionals, no refactoring.
 
-Unknown section types fall back to a default renderer that displays gracefully instead of breaking. This is the practical implementation of "zero frontend deployment" — the contract between backend and frontend is the section type string, nothing more.
+Unknown section types fall back to a default renderer that displays gracefully instead of breaking. This is the practical implementation of "zero frontend deployment" the contract between backend and frontend is the section type string, nothing more.
 
 ---
 
@@ -62,7 +62,7 @@ Unknown section types fall back to a default renderer that displays gracefully i
 
 The system supports a complete feedback loop from cold start to personalised layout:
 
-1. A new customer starts with zero purchase history — all sections score 0.0 and display in default order.
+1. A new customer starts with zero purchase history all sections score 0.0 and display in default order.
 2. The customer simulates a purchase via the `/purchase` endpoint, which increments the category count and updates the recency timestamp in the database.
 3. On the next page load, the ranker recalculates scores using the updated history. Sections reorder automatically.
 4. Purchase history persists across server restarts (`ddl-auto=update`). A customer created during a demo session will retain their history indefinitely.
@@ -130,11 +130,11 @@ open frontend/index.html
 ## Demo Flow
 
 1. Open `frontend/index.html` in a browser while Spring Boot is running.
-2. Type any name in the customer input (e.g. `rickie`) and click **Load Store**. All sections score 0.0 — default layout, no personalisation.
+2. Type any name in the customer input (e.g. `rickie`) and click **Load Store**. All sections score 0.0 default layout, no personalisation.
 3. Click **Simulate Purchase** on the Dairy section. Click it again.
 4. Click **Load Store** again. Dairy has jumped up in the ranking — its score now reflects two recent purchases.
 5. Click **Compare All Customers** to see three preset customer profiles side by side, each with a different section ordering based on their purchase history.
-6. Restart the Spring Boot server. Type `rickie` again and click **Load Store**. The purchase history is still there — scores and ranking are preserved.
+6. Restart the Spring Boot server. Type `rickie` again and click **Load Store**. The purchase history is still there scores and ranking are preserved.
 
 ---
 
@@ -144,10 +144,10 @@ open frontend/index.html
 Entities use plain `String` fields (`pageId`, `sectionId`) instead of `@ManyToOne` JPA relationships. This was a deliberate simplification to keep the project focused on platform architecture rather than ORM modelling. In a production system, proper foreign key constraints and JPA relationships would enforce referential integrity and prevent orphaned records.
 
 **Weighted scoring formula instead of ML-based ranking.**
-The ranker uses a hand-tuned weighted formula rather than a trained model. This makes the algorithm fully transparent — every score traces back to exactly three inputs with known weights. A production system would likely evolve toward collaborative filtering or a learned ranking model, but for an architectural prototype, explainability matters more than accuracy.
+The ranker uses a hand-tuned weighted formula rather than a trained model. This makes the algorithm fully transparent every score traces back to exactly three inputs with known weights. A production system would likely evolve toward collaborative filtering or a learned ranking model, but for an architectural prototype, explainability matters more than accuracy.
 
 **Score explainer in the frontend.**
-In a production store, personalisation is silent — customers never see scores or ranking logic. The explainer panel in this prototype exists purely for demonstration purposes, to make the algorithm's behaviour visible during technical review. This is a conscious design choice, not an oversight.
+In a production store, personalisation is silent customers never see scores or ranking logic. The explainer panel in this prototype exists purely for demonstration purposes, to make the algorithm's behaviour visible during technical review. This is a conscious design choice, not an oversight.
 
 ---
 
@@ -161,4 +161,4 @@ In a production store, personalisation is silent — customers never see scores 
 
 ---
 
-*This project was built to deeply understand Picnic's platform philosophy — not to replicate it, but to think alongside it.*
+*This project was built to deeply understand Picnic's platform philosophy not to replicate it, but to think alongside it.*
