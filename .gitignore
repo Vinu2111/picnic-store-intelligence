@@ -1,0 +1,17 @@
+# Maven
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Credentials — never commit these
+application.properties
+application-local.properties
+.env
+
+# OS
+.DS_Store
+Thumbs.db

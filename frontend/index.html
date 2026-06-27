@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Picnic Store Intelligence</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f0; color: #1a1a1a; min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: #00a650; color: white; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+    header span { font-size: 13px; opacity: 0.85; }
+    
+    .controls { background: white; border-bottom: 1px solid #e8e8e8; padding: 16px 24px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .controls label { font-size: 14px; font-weight: 500; color: #444; }
+    .controls input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+    .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; cursor: pointer; }
+    .controls button { padding: 8px 20px; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-green { background: #00a650; }
+    .btn-green:hover { background: #008c44; }
+    .btn-black { background: #1a1a1a; }
+    .btn-black:hover { opacity: 0.9; }
+
+    .info-bar { background: #e8f5ee; border-left: 4px solid #00a650; padding: 10px 24px; font-size: 13px; color: #1a5c35; display: none; }
+    
+    .content-wrapper { flex: 1; }
+    .store { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    #comparison { display: none; max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    
+    .section-card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #e8e8e8; position: relative; }
+    .comp-card { background: white; border-radius: 8px; padding: 12px; margin-bottom: 10px; border: 1px solid #e8e8e8; }
+    .hidden-section { opacity: 0.4; border-style: dashed; }
+    
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .section-title { font-size: 16px; font-weight: 700; }
+    .badge { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .badge-visible { background: #e8f5ee; color: #00a650; }
+    .badge-hidden { background: #fce8e8; color: #cc0000; }
+    
+    .score-bar-wrap { margin-bottom: 12px; }
+    .score-label { font-size: 12px; color: #888; margin-bottom: 4px; }
+    .score-bar { height: 6px; background: #e8e8e8; border-radius: 3px; overflow: hidden; }
+    .score-fill { height: 100%; background: #00a650; border-radius: 3px; transition: width 0.6s ease; width: 0%; }
+    
+    .business-pill { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-bottom: 12px; }
+    .pill-high { background: #e8f5ee; color: #00a650; }
+    .pill-strong { background: #e6f0ff; color: #0055cc; }
+    .pill-neutral { background: #f0f0f0; color: #666; }
+    .pill-low { background: #fff0e6; color: #cc5500; }
+    .pill-none { background: #f0f0f0; color: #999; }
+    
+    .section-type { font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px; }
+    .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .product-card { background: #f9f9f7; border-radius: 8px; padding: 12px; font-size: 13px; }
+    .product-name { font-weight: 600; margin-bottom: 4px; color: #1a1a1a; }
+    .product-price { color: #00a650; font-weight: 700; font-size: 14px; }
+    .product-category { font-size: 11px; color: #aaa; margin-top: 2px; }
+    
+    .rank-badge { position: absolute; top: 16px; right: 16px; font-size: 11px; font-weight: 700; color: #888; }
+    .empty, .loading { text-align: center; padding: 60px; font-size: 15px; }
+    .empty { color: #aaa; }
+    .loading { color: #00a650; }
+    
+    .explainer-toggle { font-size: 12px; color: #00a650; cursor: pointer; font-weight: 600; background: none; border: none; padding: 0; margin-top: 10px; }
+    .explainer { margin-top: 12px; padding-top: 12px; border-top: 1px solid #f0f0f0; display: none; }
+    .explainer.open { display: block; }
+    .score-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 12px; }
+    .score-row-label { width: 150px; color: #666; }
+    .score-mini-bar { flex: 1; height: 4px; background: #e8e8e8; border-radius: 2px; }
+    .score-mini-fill { height: 100%; background: #00a650; border-radius: 2px; }
+    .score-row-value { width: 36px; text-align: right; color: #333; font-weight: 600; }
+    
+    .simulate-btn { padding: 6px 12px; background: transparent; color: #00a650; border: 1px solid #00a650; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    .simulate-btn:hover { background: #e8f5ee; }
+    .simulate-msg { font-size: 12px; color: #00a650; margin-left: 10px; display: none; }
+    
+    footer { background: #1a1a1a; color: white; padding: 32px 24px; display: flex; justify-content: space-between; align-items: flex-start; margin-top: auto; flex-wrap: wrap; gap: 24px; }
+    footer h3 { font-size: 14px; margin-bottom: 12px; color: #ccc; font-weight: 600; }
+    footer ul { list-style: none; }
+    footer ul li { margin-bottom: 8px; }
+    footer a { color: #00a650; text-decoration: none; font-size: 13px; }
+    footer a:hover { text-decoration: underline; }
+    footer p { font-size: 13px; color: #aaa; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>🛒 Picnic Store Intelligence</h1>
+  <span>Server-driven UI + Smart Section Ranker</span>
+</header>
+
+<div class="controls">
+  <label>Customer:</label>
+  <input type="text" id="customerInput" placeholder="Type any name or select below" style="width: 200px;" />
+  <select id="customerSelect" onchange="document.getElementById('customerInput').value = this.value">
+    <option value="">Anonymous</option>
+    <option value="customer-1">Customer 1 — Dairy Lover</option>
+    <option value="customer-2">Customer 2 — Recipe Lover</option>
+    <option value="customer-3">Customer 3 — Balanced Shopper</option>
+  </select>
+  <button class="btn-green" onclick="loadPage()">Load Store</button>
+  <button class="btn-black" onclick="loadComparison()">Compare All Customers</button>
+</div>
+
+<div class="info-bar" id="infoBar"></div>
+
+<div class="content-wrapper">
+  <div class="store" id="store">
+    <div class="empty">Type a customer name and click Load Store</div>
+  </div>
+
+  <div id="comparison">
+    <div class="comparison-grid">
+      <div>
+        <h3 style="font-size:14px; font-weight:700; margin-bottom:12px; color:#00a650;">Customer 1 — Dairy Lover</h3>
+        <div id="col-1"></div>
+      </div>
+      <div>
+        <h3 style="font-size:14px; font-weight:700; margin-bottom:12px; color:#00a650;">Customer 2 — Recipe Lover</h3>
+        <div id="col-2"></div>
+      </div>
+      <div>
+        <h3 style="font-size:14px; font-weight:700; margin-bottom:12px; color:#00a650;">Customer 3 — Balanced Shopper</h3>
+        <div id="col-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div>
+    <h3>Built by exploring Picnic Engineering's blog series</h3>
+    <ul>
+      <li><a href="https://blog.picnic.nl/faster-features-happier-customers-introducing-the-platform-that-transformed-our-grocery-app-b38e57a85531" target="_blank">→ Faster Features, Happier Customers</a></li>
+      <li><a href="https://blog.picnic.nl/picnic-10-years-2022-building-a-store-platform-to-scale-beyond-a-million-customers-89bb8ee1bb55" target="_blank">→ Building a Store Platform to Scale</a></li>
+      <li><a href="https://blog.picnic.nl/java-meets-javascript-a-modern-approach-to-dynamic-page-rendering-31250dc66f33" target="_blank">→ Java Meets JavaScript: Dynamic Page Rendering</a></li>
+    </ul>
+  </div>
+  <div>
+    <h3>Extended with:</h3>
+    <p>per-customer section ranking based on purchase behaviour</p>
+  </div>
+</footer>
+
+<script>
+  const API = 'http://localhost:8080';
+
+// UI Component Registry — inspired by Picnic's server-driven UI philosophy.
+// The backend decides WHAT to show. This registry decides HOW to render it.
+// New section types require only a new entry here — zero changes elsewhere.
+const renderers = {
+
+  BANNER: (section) => `
+    <div style="background: linear-gradient(135deg, #00a650, #007a3d);
+                border-radius: 10px; padding: 20px; color: white; text-align: center;">
+      <div style="font-size: 20px; font-weight: 700;">${section.title}</div>
+      <div style="font-size: 13px; opacity: 0.85; margin-top: 4px;">
+        Fresh groceries delivered to your door
+      </div>
+    </div>
+  `,
+
+  PRODUCT_GRID: (section) => `
+    <div class="products-grid">
+      ${(section.products || []).map(p => `
+        <div class="product-card">
+          <div class="product-name">${p.name}</div>
+          <div class="product-price">€${p.price.toFixed(2)}</div>
+          <div class="product-category">${p.category}</div>
+        </div>
+      `).join('')}
+    </div>
+  `,
+
+  RECIPE: (section) => `
+    <div class="products-grid">
+      ${(section.products || []).map(p => `
+        <div class="product-card" style="border-left: 3px solid #00a650;">
+          <div style="font-size: 10px; color: #00a650; font-weight: 700;
+                      text-transform: uppercase; margin-bottom: 4px;">Recipe Kit</div>
+          <div class="product-name">${p.name}</div>
+          <div class="product-price">€${p.price.toFixed(2)}</div>
+        </div>
+      `).join('')}
+    </div>
+  `,
+
+  PROMO: (section) => `
+    <div style="background: #fff8e1; border: 1px dashed #f0a500;
+                border-radius: 8px; padding: 16px; text-align: center;">
+      <div style="font-size: 15px; font-weight: 700; color: #b37a00;">
+        🎉 ${section.title}
+      </div>
+      <div style="font-size: 13px; color: #888; margin-top: 4px;">
+        Available this weekend only
+      </div>
+    </div>
+  `
+};
+
+// Default renderer for unknown section types
+// This is the key — unknown types render gracefully without code changes
+const defaultRenderer = (section) => `
+  <div style="padding: 12px; background: #f9f9f7; border-radius: 8px;
+              font-size: 13px; color: #888;">
+    Unknown section type: ${section.type}
+  </div>
+`;
+
+// Resolve renderer from registry — falls back to default if type unknown
+function renderSectionContent(section) {
+  const renderer = renderers[section.type] || defaultRenderer;
+  return renderer(section);
+}
+
+  function getPillClass(signal) {
+    switch (signal) {
+      case 'High purchase intent': return 'pill-high';
+      case 'Strong conversion candidate': return 'pill-strong';
+      case 'Neutral visibility': return 'pill-neutral';
+      case 'Low engagement signal': return 'pill-low';
+      case 'No purchase history': return 'pill-none';
+      default: return 'pill-none';
+    }
+  }
+
+  async function simulatePurchase(customerId, sectionId, btnElement) {
+    try {
+      const res = await fetch(`${API}/api/customers/${customerId}/purchase?category=${sectionId}`, { method: 'POST' });
+      const data = await res.json();
+      const msg = btnElement.nextElementSibling;
+      msg.textContent = '✅ Purchase recorded! Click Load Store to see updated ranking.';
+      msg.style.display = 'inline';
+      setTimeout(() => { msg.style.display = 'none'; }, 4000);
+    } catch (err) {
+      alert('Error recording purchase: ' + err.message);
+    }
+  }
+
+  async function loadPage() {
+    const customerId = document.getElementById('customerInput').value.trim();
+    const store = document.getElementById('store');
+    const infoBar = document.getElementById('infoBar');
+    const comparison = document.getElementById('comparison');
+
+    comparison.style.display = 'none';
+    store.style.display = 'block';
+    store.innerHTML = '<div class="loading">Loading your personalized store...</div>';
+
+    const url = customerId
+      ? `${API}/api/pages/home?customerId=${customerId}`
+      : `${API}/api/pages/home`;
+
+    try {
+      const res = await fetch(url);
+      const page = await res.json();
+
+      infoBar.style.display = 'block';
+      infoBar.textContent = customerId
+        ? `Showing personalized layout for ${page.customerId} — sections ranked by purchase behaviour, recency, and time of day`
+        : 'Showing default layout — no personalization applied. All sections score 0.';
+
+      store.innerHTML = '';
+
+      if (!page.sections || page.sections.length === 0) {
+        store.innerHTML = '<div class="empty">No sections found</div>';
+        return;
+      }
+
+      page.sections.forEach((section, index) => {
+        const card = document.createElement('div');
+        card.className = `section-card ${section.visible ? '' : 'hidden-section'}`;
+
+        const scorePercent = Math.round(section.score * 100);
+        const pillClass = getPillClass(section.businessSignal);
+
+        const freqScore = Math.min(section.score * 100 / 0.5, 100);
+        const recencyScore = Math.min(section.score * 100 / 0.3, 100);
+        const timeScore = Math.min(section.score * 100 / 0.2, 100);
+
+        const displayFreqValue = (section.score * 0.5).toFixed(2);
+        const displayRecencyValue = (section.score * 0.3).toFixed(2);
+        const displayTimeValue = (section.score * 0.2).toFixed(2);
+
+        let simulateHtml = '';
+        if (customerId && !['banner', 'weekend-promo'].includes(section.sectionId)) {
+          simulateHtml = `
+            <div>
+              <button class="simulate-btn" onclick="simulatePurchase('${customerId}', '${section.sectionId}', this)">🛒 Simulate Purchase</button>
+              <span class="simulate-msg"></span>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="rank-badge">#${index + 1}</div>
+          <div class="section-header">
+            <div class="section-title">${section.title}</div>
+            <span class="badge ${section.visible ? 'badge-visible' : 'badge-hidden'}">
+              ${section.visible ? 'Visible' : 'Hidden'}
+            </span>
+          </div>
+          <div class="section-type">${section.type}</div>
+          <div class="score-bar-wrap">
+            <div class="score-label">Relevance score: ${section.score.toFixed(2)}</div>
+            <div class="score-bar">
+              <div class="score-fill" style="width: 0%"></div>
+            </div>
+            <div class="business-pill ${pillClass}">${section.businessSignal || 'No signal'}</div>
+          </div>
+          ${renderSectionContent(section)}
+          ${simulateHtml}
+          <button class="explainer-toggle" onclick="this.nextElementSibling.classList.toggle('open')">▼ Why this score?</button>
+          <div class="explainer">
+            <div class="score-row">
+              <span class="score-row-label">Purchase frequency (×0.5)</span>
+              <div class="score-mini-bar"><div class="score-mini-fill" style="width:${freqScore}%"></div></div>
+              <span class="score-row-value">${displayFreqValue}</span>
+            </div>
+            <div class="score-row">
+              <span class="score-row-label">Recency (×0.3)</span>
+              <div class="score-mini-bar"><div class="score-mini-fill" style="width:${recencyScore}%"></div></div>
+              <span class="score-row-value">${displayRecencyValue}</span>
+            </div>
+            <div class="score-row">
+              <span class="score-row-label">Time of day (×0.2)</span>
+              <div class="score-mini-bar"><div class="score-mini-fill" style="width:${timeScore}%"></div></div>
+              <span class="score-row-value">${displayTimeValue}</span>
+            </div>
+            <div style="margin-top:8px;font-size:12px;color:#444;font-weight:700;">
+              Final score = (freq × 0.5) + (recency × 0.3) + (time × 0.2)
+            </div>
+          </div>
+        `;
+
+        store.appendChild(card);
+        
+        // Trigger CSS transition
+        setTimeout(() => {
+          const fill = card.querySelector('.score-fill');
+          if (fill) fill.style.width = scorePercent + '%';
+        }, 50);
+      });
+
+    } catch (err) {
+      store.innerHTML = `<div class="empty">Error loading store: ${err.message}<br><small>Make sure Spring Boot is running on port 8080</small></div>`;
+    }
+  }
+
+  async function loadComparison() {
+    document.getElementById('store').style.display = 'none';
+    document.getElementById('infoBar').style.display = 'none';
+    const comparison = document.getElementById('comparison');
+    comparison.style.display = 'block';
+
+    const customers = [
+      { id: 'customer-1', colId: 'col-1' },
+      { id: 'customer-2', colId: 'col-2' },
+      { id: 'customer-3', colId: 'col-3' }
+    ];
+
+    try {
+      const promises = customers.map(c => 
+        fetch(`${API}/api/pages/home?customerId=${c.id}`).then(res => res.json())
+      );
+      
+      customers.forEach(c => {
+        document.getElementById(c.colId).innerHTML = '<div style="color:#aaa;font-size:13px;">Loading...</div>';
+      });
+
+      const results = await Promise.all(promises);
+
+      results.forEach((page, i) => {
+        const colId = customers[i].colId;
+        const col = document.getElementById(colId);
+        col.innerHTML = '';
+
+        page.sections.forEach((section, index) => {
+          const scorePercent = Math.round(section.score * 100);
+          const isVisible = section.visible;
+          const pillClass = getPillClass(section.businessSignal);
+          
+          const card = document.createElement('div');
+          card.className = `comp-card ${isVisible ? '' : 'hidden-section'}`;
+          
+          card.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:13px;font-weight:700;">#${index + 1} ${section.title}</span>
+              <span style="font-size:10px;color:${isVisible ? '#00a650' : '#cc0000'};font-weight:700;">
+                ${isVisible ? 'VISIBLE' : 'HIDDEN'}
+              </span>
+            </div>
+            <div style="font-size:11px;color:#aaa;margin-bottom:6px;">${section.type}</div>
+            <div style="font-size:11px;color:#888;margin-bottom:4px;">Score: ${section.score.toFixed(2)}</div>
+            <div class="score-bar" style="margin-bottom: 8px;">
+              <div class="score-fill" style="width: 0%"></div>
+            </div>
+            <div class="business-pill ${pillClass}" style="margin-bottom: 0;">${section.businessSignal || 'No signal'}</div>
+          `;
+          col.appendChild(card);
+          
+          // Trigger CSS transition
+          setTimeout(() => {
+            const fill = card.querySelector('.score-fill');
+            if (fill) fill.style.width = scorePercent + '%';
+          }, 50);
+        });
+      });
+    } catch (err) {
+      customers.forEach(c => {
+        document.getElementById(c.colId).innerHTML = `<div style="color:#cc0000;font-size:12px;">Error: ${err.message}</div>`;
+      });
+    }
+  }
+</script>
+
+</body>
+</html>
