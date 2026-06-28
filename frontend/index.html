@@ -173,6 +173,24 @@
     let activityFeed = [];
     let activeCustomerId = '';
 
+    // Save last used customer to localStorage so it persists across browser sessions
+    function saveLastCustomer(customerId) {
+        try {
+            localStorage.setItem('psi_last_customer', customerId);
+        } catch(e) {
+            // localStorage not available — ignore silently
+        }
+    }
+
+    // Load last used customer from localStorage
+    function loadLastCustomer() {
+        try {
+            return localStorage.getItem('psi_last_customer') || '';
+        } catch(e) {
+            return '';
+        }
+    }
+
     // UI Component Registry
     const renderers = {
       BANNER: (section, rank) => `
@@ -266,16 +284,18 @@
       document.getElementById(`explainer-${id}`).classList.toggle('open');
     }
 
-    // Init URL state
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlCustomer = urlParams.get('customer');
-    if (urlCustomer) {
-      document.getElementById('customerInput').value = urlCustomer;
-    }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Priority: URL param > localStorage > nothing
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlCustomer = urlParams.get('customer');
+        const savedCustomer = loadLastCustomer();
+        const customerToLoad = urlCustomer || savedCustomer;
 
-    window.onload = () => {
-      loadEverything();
-    };
+        if (customerToLoad && customerToLoad.trim() !== '') {
+            document.getElementById('customerInput').value = customerToLoad;
+            setTimeout(() => loadEverything(), 300);
+        }
+    });
 
     function handleSelectChange() {
       const val = document.getElementById('customerSelect').value;
@@ -284,11 +304,11 @@
     }
 
     function updateURL(customerId) {
-      if (customerId) {
-        const url = new URL(window.location);
-        url.searchParams.set('customer', customerId);
-        window.history.pushState({}, '', url);
-      }
+        if (customerId && customerId.trim() !== '') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('customer', customerId);
+            window.history.pushState({}, '', url.toString());
+        }
     }
 
     async function loadEverything() {
@@ -301,7 +321,8 @@
         activeCustomerId = customerId;
       }
       
-      updateURL(customerId);
+      updateURL(activeCustomerId);
+      saveLastCustomer(activeCustomerId);
       
       try {
         // Register if new (safe to call multiple times)
