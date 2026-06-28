@@ -1,9 +1,9 @@
 # picnic-store-intelligence
 
-An architectural prototype exploring server-driven UI and per-customer section ranking — built after reading Picnic Engineering's full Page Platform blog series.
+An architectural prototype exploring server-driven UI and per-customer section ranking built after reading Picnic Engineering's full Page Platform blog series.
 
 > "Instead of asking how do we build this feature, we now ask how do we extend the platform so that this and the next ten features can be built more easily."
-> — Picnic Engineering Blog
+> Picnic Engineering Blog
 
 ## Live Demo
 
@@ -22,11 +22,11 @@ https://picnic-store-intelligence.vercel.app?customer=your-name
 
 After reading Picnic's full Page Platform blog series, two problems stood out worth exploring independently:
 
-**Problem 1 — Server-driven layout control**
-The backend decides what sections appear, in what order, and in what state. The frontend is a dumb renderer with a component registry — zero hardcoded UI logic. Adding a new section type requires one new entry in the registry, nothing else.
+**Problem 1- Server-driven layout control**
+The backend decides what sections appear, in what order, and in what state. The frontend is a dumb renderer with a component registry zero hardcoded UI logic. Adding a new section type requires one new entry in the registry, nothing else.
 
-**Problem 2 — Per-customer section ranking**
-The rule engine controls visibility but not ordering. This project adds a weighted scoring algorithm that silently ranks sections by relevance to each customer based on their purchase behaviour. The store personalizes itself — no human configuration required.
+**Problem 2- Per-customer section ranking**
+The rule engine controls visibility but not ordering. This project adds a weighted scoring algorithm that silently ranks sections by relevance to each customer based on their purchase behaviour. The store personalizes itself no human configuration required.
 
 ## The Two-Panel Experience
 
@@ -75,11 +75,11 @@ Each score maps to a business signal:
 
 ## Smart Section Unlocking
 
-The rule engine and ranker work together. Sections unlock automatically based on customer behaviour — no manual configuration:
+The rule engine and ranker work together. Sections unlock automatically based on customer behaviour no manual configuration:
 
 | Trigger | Effect |
 |---|---|
-| 0 purchases | Default layout — banner + core sections visible |
+| 0 purchases | Default layout banner + core sections visible |
 | 3+ purchases | Recipes section unlocks automatically |
 | 5+ purchases | Weekend promo unlocks automatically |
 
@@ -87,7 +87,7 @@ Progress bars show how close a customer is to unlocking each section.
 
 ## UI Component Registry
 
-The frontend uses a component registry pattern — the backend decides WHAT to show, the registry decides HOW to render it:
+The frontend uses a component registry pattern the backend decides WHAT to show, the registry decides HOW to render it:
 
 ```javascript
 const renderers = {
@@ -161,14 +161,14 @@ open frontend/index.html
 
 ## Demo Flow
 
-1. Open the live URL — type any name → Load Store
-2. See default layout — "New Customer" status, neutral scores
+1. Open the live URL - type any name → Load Store
+2. See default layout - "New Customer" status, neutral scores
 3. Click Buy on products in the right panel
 4. Watch the left panel update in real time — sections rerank, scores rise
 5. After 3 purchases — Recipes section unlocks automatically
-6. Click "Compare All" — see 3 different customers, 3 different stores
-7. Click "Reset purchases" — store returns to default instantly
-8. Share your personalized URL — anyone can see your exact store
+6. Click "Compare All" - see 3 different customers, 3 different stores
+7. Click "Reset purchases" - store returns to default instantly
+8. Share your personalized URL - anyone can see your exact store
 
 ## Design Decisions & Known Tradeoffs
 
