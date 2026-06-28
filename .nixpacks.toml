@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["jdk21"]
-
-[phases.build]
-cmds = ["mvn -DoutputFile=target/mvn-dependency-list.log -B -DskipTests clean dependency:list install"]
-
-[start]
-cmd = "java -jar target/*.jar"
