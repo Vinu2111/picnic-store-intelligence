@@ -38,6 +38,9 @@ public class SectionResponse {
     // Business impact signal derived from the relevance score
     private String businessSignal;
 
+    // How close this section is to unlocking — 0 to 100 percent
+    private int unlockProgress;
+
     /** Products in this section — populated only for PRODUCT_GRID and RECIPE types */
     private List<ProductResponse> products;
 }

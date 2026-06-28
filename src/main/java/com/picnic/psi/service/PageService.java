@@ -26,17 +26,20 @@ public class PageService {
     private final ProductRepository productRepository;
     private final RuleEngineService ruleEngineService;
     private final RankerService rankerService;
+    private final com.picnic.psi.repository.PurchaseHistoryRepository purchaseHistoryRepository;
 
     public PageService(PageRepository pageRepository,
                        SectionRepository sectionRepository,
                        ProductRepository productRepository,
                        RuleEngineService ruleEngineService,
-                       RankerService rankerService) {
+                       RankerService rankerService,
+                       com.picnic.psi.repository.PurchaseHistoryRepository purchaseHistoryRepository) {
         this.pageRepository = pageRepository;
         this.sectionRepository = sectionRepository;
         this.productRepository = productRepository;
         this.ruleEngineService = ruleEngineService;
         this.rankerService = rankerService;
+        this.purchaseHistoryRepository = purchaseHistoryRepository;
     }
 
     /**
@@ -58,8 +61,23 @@ public class PageService {
         // Step 3 — For each section, evaluate visibility, calculate score, and attach products
         List<SectionResponse> sectionResponses = sections.stream().map(section -> {
 
-            // Check if the rule engine says this section should be visible right now
-            boolean visible = ruleEngineService.isSectionVisible(section.getId(), section);
+            // Section is visible if rule engine says SHOW
+            // OR if behaviour-based unlocking says it's earned
+            boolean visible = ruleEngineService.isSectionVisible(section.getId(), section)
+                    || ruleEngineService.isUnlockedByBehaviour(
+                            section.getId(), customerId, purchaseHistoryRepository);
+
+            // Calculate unlock progress for locked sections
+            int unlockProgress = 0;
+            if (section.getId().equals("recipes")) {
+                int total = purchaseHistoryRepository.findByCustomerId(customerId)
+                        .stream().mapToInt(h -> h.getPurchaseCount()).sum();
+                unlockProgress = Math.min((total * 100) / 3, 100);
+            } else if (section.getId().equals("weekend-promo")) {
+                int total = purchaseHistoryRepository.findByCustomerId(customerId)
+                        .stream().mapToInt(h -> h.getPurchaseCount()).sum();
+                unlockProgress = Math.min((total * 100) / 5, 100);
+            }
 
             // Calculate personalization score using the section's ID as the category
             // (our purchase history categories match section IDs: "dairy", "vegetables", "recipes")
@@ -82,6 +100,7 @@ public class PageService {
                     .visible(visible)
                     .score(score)
                     .businessSignal(rankerService.getBusinessSignal(score))
+                    .unlockProgress(unlockProgress)
                     .products(productResponses)
                     .build();
 

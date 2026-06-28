@@ -141,8 +141,11 @@ public class DataSeeder implements CommandLineRunner {
                 // Weekend promo shows only on Saturday and Sunday
                 Rule.builder().sectionId("weekend-promo").conditionType("DAY_OF_WEEK").conditionValue("SATURDAY").action("SHOW").build(),
                 Rule.builder().sectionId("weekend-promo").conditionType("DAY_OF_WEEK").conditionValue("SUNDAY").action("SHOW").build(),
-                // Recipes section shows only in the evening
-                Rule.builder().sectionId("recipes").conditionType("TIME_OF_DAY").conditionValue("EVENING").action("SHOW").build()
+                
+                // Make dairy, vegetables, and recipes always visible so the ranker effect is clearly visible in demos
+                Rule.builder().sectionId("dairy").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build(),
+                Rule.builder().sectionId("vegetables").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build(),
+                Rule.builder().sectionId("recipes").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build()
         ));
 
         // =============================================

@@ -83,4 +83,31 @@ public class RuleEngineService {
         // No rule matched → section stays hidden
         return false;
     }
+
+    // Smart unlocking — sections unlock based on customer purchase behaviour
+    // This connects the ranker and rule engine together
+    public boolean isUnlockedByBehaviour(String sectionId, String customerId,
+            com.picnic.psi.repository.PurchaseHistoryRepository purchaseHistoryRepository) {
+
+        if (customerId == null || customerId.isBlank()) {
+            return false;
+        }
+
+        var history = purchaseHistoryRepository.findByCustomerId(customerId);
+        int totalPurchases = history.stream()
+                .mapToInt(com.picnic.psi.model.PurchaseHistory::getPurchaseCount)
+                .sum();
+
+        // Recipes unlocks after 3 total purchases — customer is engaged
+        if (sectionId.equals("recipes") && totalPurchases >= 3) {
+            return true;
+        }
+
+        // Weekend promo unlocks after 5 total purchases — loyal customer
+        if (sectionId.equals("weekend-promo") && totalPurchases >= 5) {
+            return true;
+        }
+
+        return false;
+    }
 }
