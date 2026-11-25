@@ -105,6 +105,7 @@
                 <configuration>
                     <compilerArgs>
                         <arg>-XDcompilePolicy=simple</arg>
+                        <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
                         <arg>--should-stop=ifError=FLOW</arg>
                         <arg>-Werror</arg>
                         <arg>-Xplugin:ErrorProne</arg>
