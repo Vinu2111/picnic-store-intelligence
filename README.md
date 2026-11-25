@@ -10,8 +10,8 @@ An architectural prototype exploring server-driven UI and per-customer section r
 | | URL |
 |---|---|
 | Frontend | https://picnic-store-intelligence.vercel.app |
-| Backend API | https://picnic-store-intelligence-production.up.railway.app |
-| Swagger UI | https://picnic-store-intelligence-production.up.railway.app/swagger-ui.html |
+| Backend API | https://picnic-store-intelligence-api.onrender.com |
+| Swagger UI | https://picnic-store-intelligence-api.onrender.com/swagger-ui.html |
 
 **Try it with a pre-loaded customer:**
 ```
@@ -131,7 +131,7 @@ https://picnic-store-intelligence.vercel.app?customer=vinayak
 - SpringDoc OpenAPI (Swagger UI) + Spring Boot Actuator + `Server-Timing` header
 - Maven
 - Vanilla HTML/JS frontend with UI Component Registry + `defaultRenderer` fallback
-- Deployed: Railway (backend) + Vercel (frontend)
+- Deployed: Render (backend Docker) + Vercel (frontend)
 
 ## Engineering & Performance Highlights
 
