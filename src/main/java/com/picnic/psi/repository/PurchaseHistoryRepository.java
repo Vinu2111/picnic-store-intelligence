@@ -1,6 +1,7 @@
 package com.picnic.psi.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import com.picnic.psi.model.PurchaseHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,4 +15,7 @@ public interface PurchaseHistoryRepository extends JpaRepository<PurchaseHistory
 
     // Fetches all purchase history records for a customer, used to personalize their experience
     List<PurchaseHistory> findByCustomerId(String customerId);
+
+    // Fetches a single category record for a customer without scanning all records in memory
+    Optional<PurchaseHistory> findByCustomerIdAndCategory(String customerId, String category);
 }

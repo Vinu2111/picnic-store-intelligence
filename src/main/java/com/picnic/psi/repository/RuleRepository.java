@@ -1,5 +1,6 @@
 package com.picnic.psi.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import com.picnic.psi.model.Rule;
@@ -14,4 +15,7 @@ public interface RuleRepository extends JpaRepository<Rule, Long> {
 
     // Fetches all visibility rules for a section, used by the rule engine to decide SHOW/HIDE
     List<Rule> findBySectionId(String sectionId);
+
+    // Batch-fetches visibility rules across multiple sections in a single query
+    List<Rule> findBySectionIdIn(Collection<String> sectionIds);
 }

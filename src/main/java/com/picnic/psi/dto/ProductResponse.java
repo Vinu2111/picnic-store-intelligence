@@ -10,10 +10,10 @@ import lombok.NoArgsConstructor;
  * DTO representing a single product in the API response.
  * Maps 1-to-1 from the Product entity, excluding internal fields like sectionId.
  */
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@NoArgsConstructor
 public class ProductResponse {
 
     /** Unique product identifier */

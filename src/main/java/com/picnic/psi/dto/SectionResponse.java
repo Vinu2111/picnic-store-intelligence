@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
  * DTO representing a single section within a page.
  * Contains visibility info, ranking score, and optionally a list of products.
  */
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@NoArgsConstructor
 public class SectionResponse {
 
     /** Unique section identifier, e.g. "dairy", "banner" */
@@ -26,6 +26,9 @@ public class SectionResponse {
     /** Display title shown above the section, e.g. "Dairy & Eggs" */
     private String title;
 
+    /** Optional backend-driven subtitle copy */
+    private String subtitle;
+
     /** Display order on the page (lower = appears higher) */
     private int order;
 
@@ -34,6 +37,9 @@ public class SectionResponse {
 
     /** Ranking score calculated by the personalization algorithm (0.0 if not ranked) */
     private double score;
+
+    /** Detailed factor breakdown explaining how the score was derived */
+    private ScoreBreakdown scoreBreakdown;
 
     // Business impact signal derived from the relevance score
     private String businessSignal;

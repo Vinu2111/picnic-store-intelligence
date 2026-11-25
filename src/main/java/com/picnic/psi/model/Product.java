@@ -13,17 +13,17 @@ import lombok.NoArgsConstructor;
 /**
  * Represents a product that can appear inside a section.
  */
-@Entity
-@Table(name = "products")
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@Entity
+@NoArgsConstructor
+@Table(name = "products")
 public class Product {
 
     /** Auto-generated product ID */
-    @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
     private Long id;
 
     /** Product display name, e.g. "Organic Bananas" */

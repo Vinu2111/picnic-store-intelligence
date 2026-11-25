@@ -1,6 +1,8 @@
 package com.picnic.psi.config;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import com.picnic.psi.model.Page;
@@ -13,6 +15,8 @@ import com.picnic.psi.repository.ProductRepository;
 import com.picnic.psi.repository.PurchaseHistoryRepository;
 import com.picnic.psi.repository.RuleRepository;
 import com.picnic.psi.repository.SectionRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
@@ -23,22 +27,28 @@ import org.springframework.stereotype.Component;
 @Component
 public class DataSeeder implements CommandLineRunner {
 
+    private static final Logger LOG = LoggerFactory.getLogger(DataSeeder.class);
+    private static final ZoneId STORE_ZONE = ZoneId.of("Europe/Amsterdam");
+
     private final PageRepository pageRepository;
     private final SectionRepository sectionRepository;
     private final ProductRepository productRepository;
     private final RuleRepository ruleRepository;
     private final PurchaseHistoryRepository purchaseHistoryRepository;
+    private final Clock clock;
 
     public DataSeeder(PageRepository pageRepository,
                       SectionRepository sectionRepository,
                       ProductRepository productRepository,
                       RuleRepository ruleRepository,
-                      PurchaseHistoryRepository purchaseHistoryRepository) {
+                      PurchaseHistoryRepository purchaseHistoryRepository,
+                      Clock clock) {
         this.pageRepository = pageRepository;
         this.sectionRepository = sectionRepository;
         this.productRepository = productRepository;
         this.ruleRepository = ruleRepository;
         this.purchaseHistoryRepository = purchaseHistoryRepository;
+        this.clock = clock;
     }
 
     @Override
@@ -48,7 +58,7 @@ public class DataSeeder implements CommandLineRunner {
         // We only seed if no data exists — new customer purchase history
         // will survive server restarts, making the demo more realistic.
         if (pageRepository.count() > 0) {
-            System.out.println("⏭️  Seed data already exists, skipping... (customer purchase history preserved)");
+            LOG.info("Seed data already exists, skipping (customer purchase history preserved)");
             return;
         }
 
@@ -79,6 +89,7 @@ public class DataSeeder implements CommandLineRunner {
                         .pageId("home")
                         .type("BANNER")
                         .title("Fresh Deals Today \uD83D\uDED2")
+                        .subtitle("Fresh groceries delivered to your door")
                         .displayOrder(1)
                         .alwaysVisible(true)
                         .build(),
@@ -87,6 +98,7 @@ public class DataSeeder implements CommandLineRunner {
                         .pageId("home")
                         .type("PRODUCT_GRID")
                         .title("Dairy & Eggs")
+                        .subtitle("Everyday breakfast and fridge staples")
                         .displayOrder(2)
                         .alwaysVisible(false)
                         .build(),
@@ -95,6 +107,7 @@ public class DataSeeder implements CommandLineRunner {
                         .pageId("home")
                         .type("PRODUCT_GRID")
                         .title("Fresh Vegetables")
+                        .subtitle("Crisp seasonal greens and salad essentials")
                         .displayOrder(3)
                         .alwaysVisible(false)
                         .build(),
@@ -103,6 +116,7 @@ public class DataSeeder implements CommandLineRunner {
                         .pageId("home")
                         .type("RECIPE")
                         .title("Meal Ideas This Week")
+                        .subtitle("Unlocks automatically after 3 purchases")
                         .displayOrder(4)
                         .alwaysVisible(false)
                         .build(),
@@ -111,8 +125,27 @@ public class DataSeeder implements CommandLineRunner {
                         .pageId("home")
                         .type("PROMO")
                         .title("Weekend Special \uD83C\uDF89")
+                        .subtitle("Visible on weekends or after 5 purchases")
                         .displayOrder(5)
                         .alwaysVisible(false)
+                        .build(),
+                Section.builder()
+                        .id("detail-hero")
+                        .pageId("product-detail")
+                        .type("BANNER")
+                        .title("Product Spotlight")
+                        .subtitle("Server-driven detail view served from /api/pages/product-detail")
+                        .displayOrder(1)
+                        .alwaysVisible(true)
+                        .build(),
+                Section.builder()
+                        .id("detail-pairings")
+                        .pageId("product-detail")
+                        .type("RECIPE")
+                        .title("Goes Great With")
+                        .subtitle("Meal kits and essentials paired via the same SDUI pipeline")
+                        .displayOrder(2)
+                        .alwaysVisible(true)
                         .build()
         ));
 
@@ -142,17 +175,16 @@ public class DataSeeder implements CommandLineRunner {
                 Rule.builder().sectionId("weekend-promo").conditionType("DAY_OF_WEEK").conditionValue("SATURDAY").action("SHOW").build(),
                 Rule.builder().sectionId("weekend-promo").conditionType("DAY_OF_WEEK").conditionValue("SUNDAY").action("SHOW").build(),
                 
-                // Make dairy, vegetables, and recipes always visible so the ranker effect is clearly visible in demos
+                // Core catalog sections start visible; recipes (3+ buys) and weekend-promo (weekends / 5+ buys) unlock dynamically
                 Rule.builder().sectionId("dairy").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build(),
-                Rule.builder().sectionId("vegetables").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build(),
-                Rule.builder().sectionId("recipes").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build()
+                Rule.builder().sectionId("vegetables").conditionType("ALWAYS").conditionValue("ANY").action("SHOW").build()
         ));
 
         // =============================================
         // 5. Purchase History — simulates buying habits
         //    for 2 customers to drive personalization
         // =============================================
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.ofInstant(clock.instant(), STORE_ZONE);
 
         purchaseHistoryRepository.saveAll(List.of(
                 // Customer-1: dairy lover — buys dairy frequently, rarely tries recipes
@@ -171,6 +203,6 @@ public class DataSeeder implements CommandLineRunner {
                 PurchaseHistory.builder().customerId("customer-3").category("recipes").purchaseCount(4).lastPurchasedAt(now.minusDays(6)).build()
         ));
 
-        System.out.println("✅ Seed data loaded successfully");
+        LOG.info("Seed data loaded successfully");
     }
 }

@@ -1,6 +1,7 @@
 package com.picnic.psi.controller;
 
 import java.util.List;
+import java.util.Locale;
 
 import com.picnic.psi.dto.PageResponse;
 import com.picnic.psi.dto.SectionResponse;
@@ -18,8 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
  * REST controller for the server-driven page layout API.
  * Returns fully assembled, personalized page layouts with scored and visibility-checked sections.
  */
-@RestController
 @RequestMapping("/api/pages")
+@RestController
 @Tag(name = "Page Platform", description = "Server-driven page layout API")
 public class PageController {
 
@@ -38,27 +39,23 @@ public class PageController {
     @Operation(summary = "Get personalized home page layout")
     public ResponseEntity<PageResponse> getHomePage(
             @RequestParam(required = false) String customerId) {
-
-        PageResponse response = pageService.buildPage("home", customerId);
-        return ResponseEntity.ok(response);
+        return buildTimedPageResponse("home", customerId);
     }
 
     /**
      * Returns the product detail page layout.
-     * Currently a simpler page, but follows the same personalization pipeline.
+     * Follows the same server-driven personalization pipeline as the home page.
      */
     @GetMapping("/product-detail")
     @Operation(summary = "Get product detail page layout")
     public ResponseEntity<PageResponse> getProductDetailPage(
             @RequestParam(required = false) String customerId) {
-
-        PageResponse response = pageService.buildPage("product-detail", customerId);
-        return ResponseEntity.ok(response);
+        return buildTimedPageResponse("product-detail", customerId);
     }
 
     /**
      * Returns raw section scores for a given page and customer.
-     * This endpoint exposes raw scores — perfect for explaining the algorithm in interviews.
+     * Exposes raw scores and component breakdowns for transparent review.
      */
     @GetMapping("/{pageId}/scores")
     @Operation(summary = "Get raw section scores for a customer — shows the ranking algorithm in action")
@@ -68,5 +65,15 @@ public class PageController {
 
         PageResponse response = pageService.buildPage(pageId, customerId);
         return ResponseEntity.ok(response.getSections());
+    }
+
+    private ResponseEntity<PageResponse> buildTimedPageResponse(String pageId, String customerId) {
+        long startNanos = System.nanoTime();
+        PageResponse response = pageService.buildPage(pageId, customerId);
+        double elapsedMs = (System.nanoTime() - startNanos) / 1_000_000.0;
+
+        return ResponseEntity.ok()
+                .header("Server-Timing", String.format(Locale.ROOT, "page-assembly;dur=%.2f", elapsedMs))
+                .body(response);
     }
 }

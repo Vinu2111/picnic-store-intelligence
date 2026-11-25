@@ -1,37 +1,53 @@
 package com.picnic.psi.exception;
 
+import java.time.Clock;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.time.LocalDateTime;
-import java.util.Map;
-
+/**
+ * Maps domain and validation exceptions to RFC 7807 {@link ProblemDetail} responses.
+ */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // Handle page not found or any illegal argument
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException ex) {
-        return ResponseEntity
-                .status(HttpStatus.NOT_FOUND)
-                .body(Map.of(
-                        "error", ex.getMessage(),
-                        "status", 404,
-                        "timestamp", LocalDateTime.now().toString()
-                ));
+    private static final Logger LOG = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private final Clock clock;
+
+    public GlobalExceptionHandler(Clock clock) {
+        this.clock = clock;
     }
 
-    // Handle any unexpected exception
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ProblemDetail handleNotFound(ResourceNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Resource not found");
+        problem.setProperty("timestamp", clock.instant());
+        return problem;
+    }
+
+    @ExceptionHandler({IllegalArgumentException.class, MissingServletRequestParameterException.class})
+    public ProblemDetail handleBadRequest(Exception ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Invalid request");
+        problem.setProperty("timestamp", clock.instant());
+        return problem;
+    }
+
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGenericException(Exception ex) {
-        return ResponseEntity
-                .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of(
-                        "error", "Something went wrong: " + ex.getMessage(),
-                        "status", 500,
-                        "timestamp", LocalDateTime.now().toString()
-                ));
+    public ProblemDetail handleGenericException(Exception ex) {
+        LOG.error("Unhandled exception while processing request", ex);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "An unexpected error occurred");
+        problem.setTitle("Internal server error");
+        problem.setProperty("timestamp", clock.instant());
+        return problem;
     }
 }

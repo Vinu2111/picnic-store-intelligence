@@ -106,7 +106,15 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     
     /* Store Header */
-    .store-summary { margin-bottom: 20px; font-size: 15px; font-weight: 500; color: var(--dark); background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .store-summary { margin-bottom: 20px; font-size: 15px; font-weight: 500; color: var(--dark); background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+    .timing-pill { font-size: 12px; font-weight: 600; background: #e6f6ec; color: var(--primary-dark); padding: 4px 10px; border-radius: 999px; }
+    .legacy-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; }
+    .product-card-clickable { cursor: pointer; transition: transform 0.15s ease, border-color 0.15s ease; }
+    .product-card-clickable:hover { transform: translateY(-2px); border-color: var(--primary); }
+    .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+    .modal-backdrop.open { display: flex; }
+    .modal-panel { background: var(--bg); border-radius: 14px; max-width: 680px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 20px; box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
 
   </style>
 </head>
@@ -127,6 +135,9 @@
     </select>
     <button class="btn-green" onclick="loadEverything()">Load Store</button>
     <button class="btn-black" onclick="loadComparison()">Compare All</button>
+    <label class="legacy-toggle" title="Simulate an older app version that falls back to defaultRenderer for newer section types">
+      <input type="checkbox" id="legacyClientToggle" onchange="rerenderLastPage()"> Legacy client fallback
+    </label>
     <div class="reset-link" onclick="resetCustomer()">Reset purchases</div>
   </div>
 
@@ -168,10 +179,35 @@
     <div id="comparisonGrid" class="comparison-grid"></div>
   </div>
 
+  <div id="detailModal" class="modal-backdrop" onclick="if (event.target === this) closeDetailModal()">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="detailModalTitle">Product Detail (SDUI)</h3>
+        <button class="btn-black" onclick="closeDetailModal()">Close</button>
+      </div>
+      <div id="detailModalSections" style="display: flex; flex-direction: column; gap: 15px;"></div>
+    </div>
+  </div>
+
   <script>
-    const API = 'https://picnic-store-intelligence-production.up.railway.app';
+    const urlApiOverride = new URLSearchParams(window.location.search).get('api');
+    const isLocalHost = ['localhost', '127.0.0.1', ''].includes(window.location.hostname);
+    const API = urlApiOverride || (isLocalHost ? 'http://localhost:8080' : 'https://picnic-store-intelligence-production.up.railway.app');
     let activityFeed = [];
     let activeCustomerId = '';
+    let lastSummary = null;
+    let lastPage = null;
+    let lastTimingMs = null;
+
+    function escapeHtml(value) {
+      if (value === null || value === undefined) return '';
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
     // Save last used customer to localStorage so it persists across browser sessions
     function saveLastCustomer(customerId) {
@@ -191,18 +227,18 @@
         }
     }
 
-    // UI Component Registry
+    // UI Component Registry — backend decides WHAT to show, registry decides HOW to render it
     const renderers = {
       BANNER: (section, rank) => `
         <div class="card" style="background: linear-gradient(135deg, #00a650, #007a3d); color: white;">
           <div class="card-header">
             <div class="card-title">
               <span class="rank-badge" style="background: white; color: var(--primary);">${rank}</span>
-              ${section.title}
+              ${escapeHtml(section.title)}
             </div>
             ${renderBadge(section)}
           </div>
-          <div style="font-size: 14px; opacity: 0.9;">Fresh groceries delivered to your door</div>
+          <div style="font-size: 14px; opacity: 0.9;">${escapeHtml(section.subtitle || 'Fresh groceries delivered to your door')}</div>
         </div>
       `,
       PRODUCT_GRID: (section, rank) => renderStandardSection(section, rank),
@@ -210,13 +246,16 @@
       PROMO: (section, rank) => renderStandardSection(section, rank)
     };
 
+    // Graceful fallback for unknown section types introduced by the backend before a client update
+    const defaultRenderer = (section, rank) => renderStandardSection(section, rank, true);
+
     function renderBadge(section) {
       if (section.visible) return `<span class="badge visible">VISIBLE</span>`;
       return `<span class="badge hidden">HIDDEN</span>`;
     }
 
     function renderUnlockBar(section) {
-      if (section.visible || !section.unlockProgress || section.unlockProgress === 0) return '';
+      if (section.visible || section.unlockProgress === null || section.unlockProgress === undefined) return '';
       return `
         <div class="unlock-container">
           <div class="unlock-label">🔒 Shop more to unlock — ${section.unlockProgress}% there</div>
@@ -227,18 +266,38 @@
       `;
     }
 
-    function renderStandardSection(section, rank) {
-      const scorePct = Math.min((section.score / 5) * 100, 100);
+    function renderScoreExplainer(section) {
+      const b = section.scoreBreakdown;
+      if (!b) {
+        return `<div class="explainer-row"><span>Total Score:</span><strong>${section.score.toFixed(2)}</strong></div>`;
+      }
+      const freqWeighted = (b.frequencyScore * 0.5).toFixed(2);
+      const recencyWeighted = (b.recencyScore * 0.3).toFixed(2);
+      const todWeighted = (b.timeOfDayScore * 0.2).toFixed(2);
+      return `
+        <div class="explainer-row" style="color: var(--gray); margin-bottom: 8px;"><span>Signal Basis:</span> <span>${escapeHtml(b.reason)}</span></div>
+        <div class="explainer-row"><span>Frequency (${b.frequencyScore.toFixed(2)} × 0.5):</span> <span>+ ${freqWeighted}</span></div>
+        <div class="explainer-row"><span>Recency (${b.recencyScore.toFixed(2)} × 0.3):</span> <span>+ ${recencyWeighted}</span></div>
+        <div class="explainer-row"><span>Time of Day (${b.timeOfDayScore.toFixed(2)} × 0.2):</span> <span>+ ${todWeighted}</span></div>
+        <div class="explainer-row" style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px;">
+          <strong>Total Score:</strong> <strong>${section.score.toFixed(2)}</strong>
+        </div>
+      `;
+    }
+
+    function renderStandardSection(section, rank, isFallback = false) {
+      const scorePct = Math.min(Math.max(section.score * 100, 0), 100);
+      const safeId = escapeHtml(section.sectionId);
       return `
         <div class="card" style="${section.visible ? '' : 'opacity: 0.6;'}">
           <div class="card-header" style="margin-bottom: 5px;">
             <div class="card-title">
               <span class="rank-badge">${rank}</span>
-              ${section.title}
+              ${escapeHtml(section.title)}
             </div>
             ${renderBadge(section)}
           </div>
-          <div class="type-label">${section.type}</div>
+          <div class="type-label">${escapeHtml(section.type)}${isFallback ? ' • rendered via defaultRenderer fallback' : ''}${section.subtitle ? ` • ${escapeHtml(section.subtitle)}` : ''}</div>
           
           ${renderUnlockBar(section)}
           
@@ -252,39 +311,54 @@
             </div>
           </div>
           
-          ${section.businessSignal ? `<span class="badge signal">Business Signal: ${section.businessSignal}</span>` : ''}
+          ${section.businessSignal ? `<span class="badge signal">Business Signal: ${escapeHtml(section.businessSignal)}</span>` : ''}
           
           ${section.products && section.products.length > 0 ? `
             <div class="products-grid">
               ${section.products.map(p => `
-                <div class="product-card" style="pointer-events: none;">
+                <div class="product-card product-card-clickable" data-product-name="${escapeHtml(p.name)}" title="Open server-driven product detail">
                   <div>
-                    <div class="product-name">${p.name}</div>
-                    <div class="product-price">€${p.price.toFixed(2)}</div>
+                    <div class="product-name">${escapeHtml(p.name)}</div>
+                    <div class="product-price">€${Number(p.price).toFixed(2)}</div>
                   </div>
                 </div>
               `).join('')}
             </div>
           ` : ''}
           
-          <div class="explainer-toggle" onclick="toggleExplainer('${section.sectionId}')">▼ Why this score?</div>
-          <div id="explainer-${section.sectionId}" class="explainer-content">
-            <div class="explainer-row"><span>Base Frequency (x0.5):</span> <span>+ ${(section.score * 0.5).toFixed(2)}</span></div>
-            <div class="explainer-row"><span>Recency Boost (x0.3):</span> <span>+ ${(section.score * 0.3).toFixed(2)}</span></div>
-            <div class="explainer-row"><span>Time of Day (x0.2):</span> <span>+ ${(section.score * 0.2).toFixed(2)}</span></div>
-            <div class="explainer-row" style="margin-top: 5px; border-top: 1px dashed #ccc; padding-top: 5px;">
-              <strong>Total Score:</strong> <strong>${section.score.toFixed(2)}</strong>
-            </div>
+          <div class="explainer-toggle" data-explainer-id="${safeId}">▼ Why this score?</div>
+          <div id="explainer-${safeId}" class="explainer-content">
+            ${renderScoreExplainer(section)}
           </div>
         </div>
       `;
     }
 
     function toggleExplainer(id) {
-      document.getElementById(`explainer-${id}`).classList.toggle('open');
+      const el = document.getElementById(`explainer-${id}`);
+      if (el) el.classList.toggle('open');
     }
 
     document.addEventListener('DOMContentLoaded', function() {
+        document.getElementById('storeSections').addEventListener('click', (e) => {
+          const toggle = e.target.closest('.explainer-toggle');
+          if (toggle && toggle.dataset.explainerId) {
+            toggleExplainer(toggle.dataset.explainerId);
+            return;
+          }
+          const card = e.target.closest('.product-card-clickable');
+          if (card && card.dataset.productName) {
+            openProductDetail(card.dataset.productName);
+          }
+        });
+
+        document.getElementById('shopProducts').addEventListener('click', (e) => {
+          const btn = e.target.closest('.btn-buy');
+          if (btn && btn.dataset.category && btn.dataset.name) {
+            buyProduct(btn.dataset.category, btn.dataset.name, btn);
+          }
+        });
+
         // Priority: URL param > localStorage > nothing
         const urlParams = new URLSearchParams(window.location.search);
         const urlCustomer = urlParams.get('customer');
@@ -313,7 +387,7 @@
 
     async function loadEverything() {
       const inputVal = document.getElementById('customerInput').value.trim();
-      let customerId = inputVal || `guest-${Math.floor(Math.random()*1000)}`;
+      const customerId = inputVal || `guest-${Math.floor(Math.random()*1000)}`;
       
       // If customer changed, clear feed
       if (activeCustomerId !== customerId) {
@@ -324,20 +398,33 @@
       updateURL(activeCustomerId);
       saveLastCustomer(activeCustomerId);
       
+      const summaryEl = document.getElementById('storeSummary');
+      const slowServerTimer = setTimeout(() => {
+        summaryEl.innerText = '⏳ Waking up backend server (free tier can take ~30–45s on first load)...';
+      }, 3000);
+
       try {
+        const encodedId = encodeURIComponent(customerId);
         // Register if new (safe to call multiple times)
-        await fetch(`${API}/api/customers/${customerId}/register`, { method: 'POST' });
+        await fetchWithWakeupRetry(`${API}/api/customers/${encodedId}/register`, { method: 'POST' });
         
         // Fetch all data concurrently
         const [summaryRes, pageRes, productsRes] = await Promise.all([
-          fetch(`${API}/api/customers/${customerId}/summary`),
-          fetch(`${API}/api/pages/home?customerId=${customerId}`),
+          fetch(`${API}/api/customers/${encodedId}/summary`),
+          fetch(`${API}/api/pages/home?customerId=${encodedId}`),
           fetch(`${API}/api/products`)
         ]);
         
+        if (!summaryRes.ok || !pageRes.ok || !productsRes.ok) {
+          throw new Error('Backend returned an error response');
+        }
+
         const summary = await summaryRes.json();
         const page = await pageRes.json();
         const productsGrouped = await productsRes.json();
+        lastTimingMs = parseServerTiming(pageRes.headers.get('Server-Timing'));
+        lastSummary = summary;
+        lastPage = page;
         
         renderStore(summary, page);
         renderCustomerPanel(summary, productsGrouped);
@@ -345,20 +432,56 @@
         
       } catch (e) {
         console.error("Error loading store", e);
-        document.getElementById('storeSummary').innerText = "Error loading store. Check console.";
+        summaryEl.innerText = "Error loading store. Backend may still be waking up — click Load Store to retry.";
+      } finally {
+        clearTimeout(slowServerTimer);
+      }
+    }
+
+    async function fetchWithWakeupRetry(url, options, retries = 2) {
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+          const res = await fetch(url, options);
+          if (res.ok || attempt === retries) return res;
+        } catch (err) {
+          if (attempt === retries) throw err;
+        }
+        document.getElementById('storeSummary').innerText = '⏳ Waking up backend server (retrying automatically)...';
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      }
+    }
+
+    function parseServerTiming(headerValue) {
+      if (!headerValue) return null;
+      const match = /dur=([0-9.]+)/.exec(headerValue);
+      return match ? match[1] : null;
+    }
+
+    function rerenderLastPage() {
+      if (lastSummary && lastPage) {
+        renderStore(lastSummary, lastPage);
       }
     }
 
     function renderStore(summary, page) {
       const sumEl = document.getElementById('storeSummary');
-      sumEl.innerHTML = `<strong>${summary.customerId}</strong> • ${summary.status} • ${summary.preference} • ${summary.totalPurchases} purchases`;
+      const timingHtml = lastTimingMs ? `<span class="timing-pill">⚡ Assembled in ${escapeHtml(lastTimingMs)} ms</span>` : '';
+      sumEl.innerHTML = `
+        <div><strong>${escapeHtml(summary.customerId)}</strong> • ${escapeHtml(summary.status)} • ${escapeHtml(summary.preference)} • ${summary.totalPurchases} purchases</div>
+        ${timingHtml}
+      `;
       
+      const legacyMode = document.getElementById('legacyClientToggle')?.checked;
+      const activeRegistry = legacyMode
+        ? { BANNER: renderers.BANNER, PRODUCT_GRID: renderers.PRODUCT_GRID }
+        : renderers;
+
       const sectionsEl = document.getElementById('storeSections');
       let html = '';
       let rank = 1;
       
       page.sections.forEach(section => {
-        const renderer = renderers[section.type] || renderers['PRODUCT_GRID'];
+        const renderer = activeRegistry[section.type] || defaultRenderer;
         html += renderer(section, rank);
         rank++;
       });
@@ -366,16 +489,39 @@
       sectionsEl.innerHTML = html;
     }
 
+    async function openProductDetail(productName) {
+      const modal = document.getElementById('detailModal');
+      const titleEl = document.getElementById('detailModalTitle');
+      const sectionsEl = document.getElementById('detailModalSections');
+      titleEl.textContent = `${productName} — Server-Driven Detail`;
+      sectionsEl.innerHTML = 'Loading /api/pages/product-detail...';
+      modal.classList.add('open');
+
+      try {
+        const res = await fetch(`${API}/api/pages/product-detail?customerId=${encodeURIComponent(activeCustomerId || 'guest')}`);
+        const page = await res.json();
+        sectionsEl.innerHTML = page.sections
+          .map((section, idx) => (renderers[section.type] || defaultRenderer)(section, idx + 1))
+          .join('');
+      } catch (e) {
+        sectionsEl.textContent = 'Failed to load product-detail page.';
+      }
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('open');
+    }
+
     function renderCustomerPanel(summary, productsGrouped) {
       const idEl = document.getElementById('customerIdentity');
       const initial = summary.customerId.charAt(0).toUpperCase();
       idEl.innerHTML = `
-        <div class="avatar">${initial}</div>
+        <div class="avatar">${escapeHtml(initial)}</div>
         <div class="customer-info">
-          <h2>${summary.customerId}</h2>
+          <h2>${escapeHtml(summary.customerId)}</h2>
           <div class="customer-meta">
-            <span>${summary.status}</span>
-            <span>${summary.preference}</span>
+            <span>${escapeHtml(summary.status)}</span>
+            <span>${escapeHtml(summary.preference)}</span>
             <span>${summary.totalPurchases} items</span>
           </div>
         </div>
@@ -386,13 +532,13 @@
       for (const [category, products] of Object.entries(productsGrouped)) {
         shopHtml += `
           <div class="shop-category">
-            <h3>${category}</h3>
+            <h3>${escapeHtml(category)}</h3>
             <div class="products-grid" style="grid-template-columns: repeat(2, 1fr);">
               ${products.map(p => `
                 <div class="product-card">
-                  <div class="product-name">${p.name}</div>
-                  <div class="product-price">€${p.price.toFixed(2)}</div>
-                  <button class="btn-green btn-buy" onclick="buyProduct('${category}', '${p.name}')">Buy</button>
+                  <div class="product-name">${escapeHtml(p.name)}</div>
+                  <div class="product-price">€${Number(p.price).toFixed(2)}</div>
+                  <button class="btn-green btn-buy" data-category="${escapeHtml(category)}" data-name="${escapeHtml(p.name)}">Buy</button>
                 </div>
               `).join('')}
             </div>
@@ -402,21 +548,23 @@
       shopEl.innerHTML = shopHtml;
     }
 
-    async function buyProduct(category, name) {
+    async function buyProduct(category, name, buttonEl) {
       if (!activeCustomerId) return;
+      if (buttonEl) buttonEl.disabled = true;
       try {
-        await fetch(`${API}/api/customers/${activeCustomerId}/purchase?category=${category}`, { method: 'POST' });
+        const res = await fetch(`${API}/api/customers/${encodeURIComponent(activeCustomerId)}/purchase?category=${encodeURIComponent(category)}`, { method: 'POST' });
+        if (!res.ok) throw new Error('Purchase request failed');
         
         const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
         activityFeed.unshift({ name, time });
         if (activityFeed.length > 10) activityFeed.pop();
         
         renderActivityFeed();
-        
-        // Reload after short delay to show impact
-        setTimeout(loadEverything, 800);
+        await loadEverything();
       } catch (e) {
         console.error("Purchase failed", e);
+      } finally {
+        if (buttonEl) buttonEl.disabled = false;
       }
     }
 
@@ -428,8 +576,8 @@
       }
       feedEl.innerHTML = activityFeed.map(item => `
         <div class="activity-item">
-          <span>🛒 Bought ${item.name}</span>
-          <span class="activity-time">${item.time}</span>
+          <span>🛒 Bought ${escapeHtml(item.name)}</span>
+          <span class="activity-time">${escapeHtml(item.time)}</span>
         </div>
       `).join('');
     }
@@ -440,7 +588,7 @@
       if (!confirm(`Reset all purchase history for "${customerId}"? This cannot be undone.`)) return;
 
       try {
-        await fetch(`${API}/api/customers/${customerId}/history`, { method: 'DELETE' });
+        await fetch(`${API}/api/customers/${encodeURIComponent(customerId)}/history`, { method: 'DELETE' });
         activityFeed = [];
         loadEverything();
       } catch (e) {
@@ -460,12 +608,12 @@
       
       for (const cid of customers) {
         try {
-          const res = await fetch(`${API}/api/pages/home?customerId=${cid}`);
+          const res = await fetch(`${API}/api/pages/home?customerId=${encodeURIComponent(cid)}`);
           const page = await res.json();
           
           html += `
             <div class="compare-column">
-              <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--primary); padding-bottom: 5px;">${cid}</h3>
+              <h3 style="margin-bottom: 15px; border-bottom: 2px solid var(--primary); padding-bottom: 5px;">${escapeHtml(cid)}</h3>
               <div style="display: flex; flex-direction: column; gap: 10px;">
           `;
           
@@ -476,10 +624,10 @@
               <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--light-gray); padding-bottom: 5px;">
                 <div style="font-size: 13px; font-weight: 500;">
                   <span style="color: var(--gray); margin-right: 5px;">#${rank}</span>
-                  ${s.title}
+                  ${escapeHtml(s.title)}
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 12px; color: var(--gray);">${s.score.toFixed(1)}</span>
+                  <span style="font-size: 12px; color: var(--gray);">${s.score.toFixed(2)}</span>
                   ${visibleBadge}
                 </div>
               </div>
@@ -488,7 +636,9 @@
           });
           
           html += `</div></div>`;
-        } catch (e) {}
+        } catch (e) {
+          console.error(`Failed loading comparison for ${cid}`, e);
+        }
       }
       grid.innerHTML = html;
     }

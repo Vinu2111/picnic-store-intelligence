@@ -1,5 +1,6 @@
 package com.picnic.psi.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import com.picnic.psi.model.Product;
@@ -14,4 +15,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     // Fetches all products that belong to a given section, used to populate product grids
     List<Product> findBySectionId(String sectionId);
+
+    // Batch-fetches products across multiple sections in a single query
+    List<Product> findBySectionIdIn(Collection<String> sectionIds);
 }

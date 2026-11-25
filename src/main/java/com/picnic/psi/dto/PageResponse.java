@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
  * DTO representing the full page response sent to the frontend.
  * Contains page metadata and a list of sections sorted by ranking score (highest first).
  */
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@NoArgsConstructor
 public class PageResponse {
 
     /** Page identifier, e.g. "home", "product-detail" */

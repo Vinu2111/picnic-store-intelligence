@@ -125,36 +125,48 @@ https://picnic-store-intelligence.vercel.app?customer=vinayak
 ## Tech Stack
 
 - Java 21 + Spring Boot 3.2
-- PostgreSQL (Supabase)
-- Spring Data JPA
-- SpringDoc OpenAPI (Swagger UI)
+- Google Error Prone + Picnic's `error-prone-contrib` enforced in Maven & GitHub Actions CI
+- PostgreSQL (Supabase) + H2 in-memory test profile
+- Spring Data JPA (batched queries + Spring Cache for catalog reads)
+- SpringDoc OpenAPI (Swagger UI) + Spring Boot Actuator + `Server-Timing` header
 - Maven
-- Vanilla HTML/JS frontend with UI Component Registry
+- Vanilla HTML/JS frontend with UI Component Registry + `defaultRenderer` fallback
 - Deployed: Railway (backend) + Vercel (frontend)
+
+## Engineering & Performance Highlights
+
+- **Zero N+1 queries:** `StoreCatalogService` batch-loads and caches static catalog metadata (`Page`, `Section`, `Rule`, `Product`), while `PageService` fetches a customer's `PurchaseHistory` **once** per request.
+- **Picnic Static Analysis:** Built with Google Error Prone (`2.52.0`) and Picnic's `tech.picnic.error-prone-support:error-prone-contrib` (`0.30.0`), resolving all `TimeZoneUsage`, `Slf4jLoggerDeclaration`, `LexicographicalAnnotationListing`, `StaticImport`, and `JUnitClassModifiers` checks.
+- **Transparent Scoring:** Every `SectionResponse` includes a `ScoreBreakdown` record (`frequencyScore`, `recencyScore`, `timeOfDayScore`, `purchaseCount`, `daysSinceLastPurchase`, `reason`) rendered in the UI explainer.
+- **Multi-Page SDUI:** Clicking any product opens `/api/pages/product-detail` using the exact same frontend Component Registry, plus a **Legacy client fallback** toggle demonstrating `defaultRenderer`.
+- **Testable Without Secrets:** Unit and MockMvc integration tests run cleanly against H2 via `mvn test` (`test` profile).
 
 ## Project Structure
 
 ```
 src/main/java/com/picnic/psi/
 ├── controller/    PageController, PurchaseController, ProductController
-├── service/       PageService, RuleEngineService, RankerService
+├── service/       PageService, StoreCatalogService, RuleEngineService, RankerService
 ├── model/         Page, Section, Product, Rule, PurchaseHistory
 ├── repository/    Spring Data JPA repositories
-├── dto/           PageResponse, SectionResponse, ProductResponse
-├── config/        CorsConfig, DataSeeder
-└── exception/     GlobalExceptionHandler
+├── dto/           PageResponse, SectionResponse, ProductResponse, ScoreBreakdown, customer DTOs
+├── config/        CorsConfig, DataSeeder, TimeConfig
+└── exception/     GlobalExceptionHandler, ResourceNotFoundException
 
 frontend/
-└── index.html    Two-panel UI with customer panel, activity feed, smart unlocking
+└── index.html     Two-panel SDUI + Component Registry + product-detail modal
 ```
 
-## Running Locally
+## Running Tests & Locally
 
 ```bash
 git clone https://github.com/Vinu2111/picnic-store-intelligence.git
 cd picnic-store-intelligence
-cp src/main/resources/application-local.properties src/main/resources/application.properties
-# Fill in your Supabase credentials in application.properties
+
+# Run all unit + H2 integration tests with Error Prone + Picnic error-prone-contrib
+mvn verify
+
+# Run against PostgreSQL / Supabase (configure credentials via env vars or application.properties)
 mvn spring-boot:run
 open frontend/index.html
 ```

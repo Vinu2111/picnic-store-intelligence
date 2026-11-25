@@ -11,12 +11,12 @@ import lombok.NoArgsConstructor;
 /**
  * Represents a page in the store (e.g., Home, Product Detail).
  */
-@Entity
-@Table(name = "pages")
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@Entity
+@NoArgsConstructor
+@Table(name = "pages")
 public class Page {
 
     /** Manually set page identifier, e.g. "home", "product-detail" */

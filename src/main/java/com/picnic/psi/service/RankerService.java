@@ -1,13 +1,18 @@
 package com.picnic.psi.service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
+import com.picnic.psi.dto.ScoreBreakdown;
 import com.picnic.psi.model.PurchaseHistory;
 import com.picnic.psi.repository.PurchaseHistoryRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
@@ -20,105 +25,104 @@ import org.springframework.stereotype.Service;
 @Service
 public class RankerService {
 
-    private final PurchaseHistoryRepository purchaseHistoryRepository;
+    private static final Logger LOG = LoggerFactory.getLogger(RankerService.class);
+    private static final ZoneId STORE_ZONE = ZoneId.of("Europe/Amsterdam");
 
-    public RankerService(PurchaseHistoryRepository purchaseHistoryRepository) {
+    public record ScoreResult(double score, ScoreBreakdown breakdown) {
+    }
+
+    private final PurchaseHistoryRepository purchaseHistoryRepository;
+    private final Clock clock;
+
+    public RankerService(PurchaseHistoryRepository purchaseHistoryRepository, Clock clock) {
         this.purchaseHistoryRepository = purchaseHistoryRepository;
+        this.clock = clock;
     }
 
     /**
      * Calculates a personalization score (0.0 to 1.0) for a customer–category pair.
-     *
-     * @param customerId      the customer to personalize for (null = anonymous)
-     * @param sectionCategory the category of the section being scored
-     * @return the weighted score, rounded to 2 decimal places
      */
     public double calculateScore(String customerId, String sectionCategory) {
+        return calculateScoreDetails(customerId, sectionCategory).score();
+    }
 
-        // No personalization for anonymous users
-        if (customerId == null || customerId.isBlank()) {
-            return 0.0;
+    /**
+     * Calculates score and breakdown by fetching purchase history for the customer.
+     */
+    public ScoreResult calculateScoreDetails(String customerId, String sectionCategory) {
+        if (customerId == null || customerId.isBlank()
+                || "banner".equals(sectionCategory)
+                || "weekend-promo".equals(sectionCategory)) {
+            return calculateScoreDetails(customerId, sectionCategory, Optional.empty());
         }
 
-        // Banner and promo sections have no purchase history category match.
-        // Give banner a high default score since it is always visible and
-        // should always appear prominent regardless of customer behaviour.
-        if (sectionCategory.equals("banner")) {
-            return 1.0;
-        }
-
-        // Weekend promo has no purchase history — give it a neutral mid score
-        if (sectionCategory.equals("weekend-promo")) {
-            return 0.5;
-        }
-
-        // Fetch all purchase history for this customer
         List<PurchaseHistory> historyList = purchaseHistoryRepository.findByCustomerId(customerId);
-
-        // Find the record matching the section's category
         Optional<PurchaseHistory> matchingHistory = historyList.stream()
                 .filter(history -> history.getCategory().equals(sectionCategory))
                 .findFirst();
 
-        // No purchase history for this category → no score
+        return calculateScoreDetails(customerId, sectionCategory, matchingHistory);
+    }
+
+    /**
+     * Calculates score and breakdown using pre-fetched category purchase history (zero DB queries).
+     */
+    public ScoreResult calculateScoreDetails(String customerId,
+                                             String sectionCategory,
+                                             Optional<PurchaseHistory> matchingHistory) {
+        if (customerId == null || customerId.isBlank()) {
+            return new ScoreResult(0.0, new ScoreBreakdown(0.0, 0.0, 0.0, 0, 0L, "Anonymous visitor — default order"));
+        }
+
+        if ("banner".equals(sectionCategory)) {
+            return new ScoreResult(1.0, new ScoreBreakdown(1.0, 1.0, 1.0, 0, 0L, "Pinned hero banner"));
+        }
+
+        if ("weekend-promo".equals(sectionCategory)) {
+            return new ScoreResult(0.5, new ScoreBreakdown(0.5, 0.5, 0.5, 0, 0L, "Promotional slot (neutral priority)"));
+        }
+
         if (matchingHistory.isEmpty()) {
-            return 0.0;
+            return new ScoreResult(0.0, new ScoreBreakdown(0.0, 0.0, 0.0, 0, 0L, "No purchase history in this category yet"));
         }
 
         PurchaseHistory history = matchingHistory.get();
 
-        // =============================================
-        // 1. Frequency Score (weight: 0.5)
-        // Normalize purchase count to 0.0-1.0 range, cap at 10 purchases
-        // =============================================
-        double frequencyScore = Math.min(history.getPurchaseCount() / 10.0, 1.0);
+        double frequencyScore = roundTwoDecimals(Math.min(history.getPurchaseCount() / 10.0, 1.0));
+        ZonedDateTime storeNow = ZonedDateTime.ofInstant(clock.instant(), STORE_ZONE);
+        long daysSince = Math.max(0L, ChronoUnit.DAYS.between(history.getLastPurchasedAt(), LocalDateTime.ofInstant(clock.instant(), STORE_ZONE)));
+        double recencyScore = roundTwoDecimals(Math.max(0.0, 1.0 - (daysSince / 30.0)));
 
-        // =============================================
-        // 2. Recency Score (weight: 0.3)
-        // Recent purchases score higher — drops to 0 after 30 days
-        // =============================================
-        long daysSince = ChronoUnit.DAYS.between(history.getLastPurchasedAt(), LocalDateTime.now());
-        double recencyScore = Math.max(0.0, 1.0 - (daysSince / 30.0));
-
-        // =============================================
-        // 3. Time-of-Day Score (weight: 0.2)
-        // Boost categories that are contextually relevant at this time of day
-        // =============================================
-        int currentHour = LocalTime.now().getHour();
+        int currentHour = storeNow.getHour();
         double timeOfDayScore;
-
         if ("dairy".equals(sectionCategory) && currentHour >= 6 && currentHour <= 10) {
-            // People tend to buy dairy in the morning (breakfast items)
             timeOfDayScore = 1.0;
         } else if ("recipes".equals(sectionCategory) && currentHour >= 16 && currentHour <= 20) {
-            // People plan meals in the evening (dinner prep)
             timeOfDayScore = 1.0;
         } else {
-            // Neutral — no time-of-day boost for this category right now
             timeOfDayScore = 0.5;
         }
 
-        // =============================================
-        // Final weighted score
-        // =============================================
-        double finalScore = (frequencyScore * 0.5) + (recencyScore * 0.3) + (timeOfDayScore * 0.2);
+        double finalScore = roundTwoDecimals((frequencyScore * 0.5) + (recencyScore * 0.3) + (timeOfDayScore * 0.2));
 
-        // Round to 2 decimal places
-        finalScore = Math.round(finalScore * 100.0) / 100.0;
+        LOG.debug("Scored customer={} category={} score={} (freq={}, recency={}, timeOfDay={})",
+                customerId, sectionCategory, finalScore, frequencyScore, recencyScore, timeOfDayScore);
 
-        // Log the score — useful for live demos and debugging
-        System.out.println("[Ranker] customer=" + customerId
-                + " category=" + sectionCategory
-                + " score=" + finalScore
-                + " (freq=" + frequencyScore
-                + " recency=" + recencyScore
-                + " timeOfDay=" + timeOfDayScore + ")");
-
-        return finalScore;
+        String reason = String.format("%d purchases, last bought %d day(s) ago", history.getPurchaseCount(), daysSince);
+        return new ScoreResult(
+                finalScore,
+                new ScoreBreakdown(
+                        frequencyScore,
+                        recencyScore,
+                        timeOfDayScore,
+                        history.getPurchaseCount(),
+                        daysSince,
+                        reason));
     }
 
-    // Translate a numerical score into a business impact signal
-    // This helps non-technical stakeholders understand what the score means
+    /**
+     * Translates a numerical score into a business impact signal.
+     */
     public String getBusinessSignal(double score) {
         if (score >= 0.80) {
             return "High purchase intent";
@@ -131,5 +135,9 @@ public class RankerService {
         } else {
             return "No purchase history";
         }
+    }
+
+    private static double roundTwoDecimals(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 }

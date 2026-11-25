@@ -16,17 +16,17 @@ import lombok.NoArgsConstructor;
  * Tracks how many times a customer has purchased items in a given category.
  * Used to personalize sections based on buying habits.
  */
-@Entity
-@Table(name = "purchase_history")
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@Entity
+@NoArgsConstructor
+@Table(name = "purchase_history")
 public class PurchaseHistory {
 
     /** Auto-generated record ID */
-    @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
     private Long id;
 
     /** Unique customer identifier */

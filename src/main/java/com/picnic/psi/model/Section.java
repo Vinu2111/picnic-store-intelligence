@@ -11,12 +11,12 @@ import lombok.NoArgsConstructor;
 /**
  * Represents a section within a page (e.g., a banner, product grid, promo block).
  */
-@Entity
-@Table(name = "sections")
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@Entity
+@NoArgsConstructor
+@Table(name = "sections")
 public class Section {
 
     /** Manually set section identifier, e.g. "home-banner", "weekend-promo" */
@@ -31,6 +31,9 @@ public class Section {
 
     /** Display title shown above the section */
     private String title;
+
+    /** Optional subtitle / marketing copy controlled by the backend */
+    private String subtitle;
 
     /** Order in which this section appears on the page (lower = higher) */
     private int displayOrder;

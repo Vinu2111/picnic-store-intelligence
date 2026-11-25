@@ -13,17 +13,17 @@ import lombok.NoArgsConstructor;
 /**
  * Represents a visibility rule that controls when a section is shown or hidden.
  */
-@Entity
-@Table(name = "rules")
-@Data
-@NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Data
+@Entity
+@NoArgsConstructor
+@Table(name = "rules")
 public class Rule {
 
     /** Auto-generated rule ID */
-    @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
     private Long id;
 
     /** The section this rule applies to (references Section.id) */
